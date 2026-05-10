@@ -174,8 +174,8 @@ export default function Chat() {
   useEffect(() => {
     if (!myId) return;
     const ref = doc(db, "users", myId);
-    updateDoc(ref, { online: true, lastSeen: serverTimestamp() }).catch(() => {});
-    const off = () => updateDoc(ref, { online: false, lastSeen: serverTimestamp() }).catch(() => {});
+    setDoc(ref, { online: true, lastSeen: serverTimestamp() }, { merge: true }).catch(() => {});
+    const off = () => setDoc(ref, { online: false, lastSeen: serverTimestamp() }, { merge: true }).catch(() => {});
     window.addEventListener("beforeunload", off);
     return () => { off(); window.removeEventListener("beforeunload", off); };
   }, [myId]);
@@ -257,32 +257,48 @@ export default function Chat() {
   /* ── send friend request ── */
   const sendRequest = async (targetId) => {
     if (!myId) return;
-    await updateDoc(doc(db, "users", targetId), { friendRequests: arrayUnion(myId) });
-    await updateDoc(doc(db, "users", myId), { sentRequests: arrayUnion(targetId) });
+    try {
+      await setDoc(doc(db, "users", targetId), { friendRequests: arrayUnion(myId) }, { merge: true });
+      await setDoc(doc(db, "users", myId), { sentRequests: arrayUnion(targetId) }, { merge: true });
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   /* ── accept friend request ── */
   const acceptRequest = async (fromId) => {
-    await updateDoc(doc(db, "users", myId), {
-      friends: arrayUnion(fromId),
-      friendRequests: arrayRemove(fromId),
-    });
-    await updateDoc(doc(db, "users", fromId), {
-      friends: arrayUnion(myId),
-      sentRequests: arrayRemove(myId),
-    });
+    try {
+      await setDoc(doc(db, "users", myId), {
+        friends: arrayUnion(fromId),
+        friendRequests: arrayRemove(fromId),
+      }, { merge: true });
+      await setDoc(doc(db, "users", fromId), {
+        friends: arrayUnion(myId),
+        sentRequests: arrayRemove(myId),
+      }, { merge: true });
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   /* ── decline request ── */
   const declineRequest = async (fromId) => {
-    await updateDoc(doc(db, "users", myId), { friendRequests: arrayRemove(fromId) });
-    await updateDoc(doc(db, "users", fromId), { sentRequests: arrayRemove(myId) });
+    try {
+      await setDoc(doc(db, "users", myId), { friendRequests: arrayRemove(fromId) }, { merge: true });
+      await setDoc(doc(db, "users", fromId), { sentRequests: arrayRemove(myId) }, { merge: true });
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   /* ── remove friend ── */
   const removeFriend = async (friendId) => {
-    await updateDoc(doc(db, "users", myId), { friends: arrayRemove(friendId) });
-    await updateDoc(doc(db, "users", friendId), { friends: arrayRemove(myId) });
+    try {
+      await setDoc(doc(db, "users", myId), { friends: arrayRemove(friendId) }, { merge: true });
+      await setDoc(doc(db, "users", friendId), { friends: arrayRemove(myId) }, { merge: true });
+    } catch (err) {
+      console.error(err);
+    }
     if (activeFriend?.uid === friendId) setActiveFriend(null);
   };
 
@@ -313,18 +329,26 @@ export default function Chat() {
   const saveProfile = async () => {
     if (!myId) return;
     setProfileSaving(true);
-    await updateDoc(doc(db, "users", myId), {
-      name: editName.trim() || profile?.name,
-      bio: editBio.trim(),
-      userId: editUserId.trim() || profile?.userId,
-    });
+    try {
+      await setDoc(doc(db, "users", myId), {
+        name: editName.trim() || profile?.name,
+        bio: editBio.trim(),
+        userId: editUserId.trim() || profile?.userId,
+      }, { merge: true });
+    } catch (err) {
+      console.error(err);
+    }
     setEditingProfile(false);
     setProfileSaving(false);
   };
 
   /* ── logout ── */
   const handleLogout = async () => {
-    await updateDoc(doc(db, "users", myId), { online: false }).catch(() => {});
+    try {
+      await setDoc(doc(db, "users", myId), { online: false }, { merge: true });
+    } catch (err) {
+      console.error(err);
+    }
     await signOut(auth);
     navigate("/login");
   };
