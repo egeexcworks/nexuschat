@@ -101,8 +101,9 @@ function Bubble({ msg, isMine, showDate, prevDate }) {
 
 /* ─── Main Chat Component ──────────────────────────────────── */
 export default function Chat() {
-  const [user] = useState(auth?.currentUser);
-  const navigate = useNavigate?.() || {};
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const navigate = useNavigate();
 
   // Profile state
   const [profile, setProfile] = useState(null);
@@ -139,6 +140,19 @@ export default function Chat() {
   const unsub = useRef(null);
 
   const myId = user?.uid;
+
+  /* ── listen to auth state ── */
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((authUser) => {
+      if (authUser) {
+        setUser(authUser);
+        setAuthLoading(false);
+      } else {
+        navigate("/login");
+      }
+    });
+    return unsubscribe;
+  }, [navigate]);
 
   /* ── bootstrap profile ── */
   useEffect(() => {
@@ -199,12 +213,24 @@ export default function Chat() {
   /* ── load friend requests ── */
   useEffect(() => {
     if (!profile?.friendRequests?.length) { setFriendRequests([]); return; }
-    Promise.all(
-      profile.friendRequests.map((fid) =>
-        getDoc(doc(db, "users", fid)).then((s) => s.exists() ? { uid: fid, ...s.data() } : null)
-      )
-    ).then((res) => setFriendRequests(res.filter(Boolean)));
-  }, [profile?.friendRequests?.join(",")]);
+    const unsubs = profile.friendRequests.map((fid) =>
+      onSnapshot(doc(db, "users", fid), (snap) => {
+        if (snap.exists()) {
+          setFriendRequests((prev) => {
+            const filtered = prev.filter((f) => f.uid !== fid);
+            return [...filtered, { uid: fid, ...snap.data() }];
+          });
+        }
+      }, (err) => {
+        console.error("Error loading friend request:", err);
+        // Remove this friend request if user doesn't exist
+        if (err.code === "not-found" || err.code === "permission-denied") {
+          setFriendRequests((prev) => prev.filter((f) => f.uid !== fid));
+        }
+      })
+    );
+    return () => unsubs.forEach((u) => u());
+  }, [profile?.friendRequests?.join(","), myId]);
 
   /* ── load DM messages when activeFriend changes ── */
   useEffect(() => {
@@ -376,6 +402,17 @@ export default function Chat() {
       return { ...msg, showDate };
     });
   }, [messages]);
+
+  if (authLoading || !user) {
+    return (
+      <div style={{ display: "flex", height: "100dvh", alignItems: "center", justifyContent: "center", background: "#f5f3ff" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 28, marginBottom: 16 }}>⚡</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#1a1a2e" }}>Loading Nexus...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
