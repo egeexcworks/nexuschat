@@ -105,6 +105,7 @@ function Avatar({ initials, hue, size = 44, online = false, ring = false }) {
           style={{
             position: "absolute",
             bottom: 1,
+            top: 2,
             right: 1,
             width: size * 0.27,
             height: size * 0.27,
